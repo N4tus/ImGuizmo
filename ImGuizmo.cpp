@@ -2675,7 +2675,7 @@ namespace IMGUIZMO_NAMESPACE
       }
    }
 
-   void ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor)
+   bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor)
    {
       static bool isDraging = false;
       static bool isClicking = false;
@@ -2685,6 +2685,7 @@ namespace IMGUIZMO_NAMESPACE
       static int interpolationFrames = 0;
       const vec_t referenceUp = makeVect(0.f, 1.f, 0.f);
 
+      bool isAnimating = false;
       matrix_t svgView, svgProjection;
       svgView = gContext.mViewMat;
       svgProjection = gContext.mProjectionMat;
@@ -2795,7 +2796,7 @@ namespace IMGUIZMO_NAMESPACE
                   {
                      gContext.mDrawList->AddConvexPolyFilled(faceCoordsScreen, 4, IM_COL32(0xF0, 0xA0, 0x60, 0x80));
 
-                     if (!io.MouseDown[0] && !isDraging && isClicking)
+                     if (io.MouseDown[0])
                      {
                         // apply new view direction
                         int cx = boxCoordInt / 9;
@@ -2826,10 +2827,6 @@ namespace IMGUIZMO_NAMESPACE
                         interpolationFrames = 40;
                         isClicking = false;
                      }
-                     if (io.MouseClicked[0] && !isDraging)
-                     {
-                        isClicking = true;
-                     }
                   }
                }
             }
@@ -2848,6 +2845,7 @@ namespace IMGUIZMO_NAMESPACE
          newUp = interpolationUp;
          vec_t newEye = camTarget + newDir * length;
          LookAt(&newEye.x, &camTarget.x, &newUp.x, view);
+         isAnimating = true;
       }
       isInside = gContext.mbMouseOver && ImRect(position, position + size).Contains(io.MousePos);
 
@@ -2892,5 +2890,6 @@ namespace IMGUIZMO_NAMESPACE
 
       // restore view/projection because it was used to compute ray
       ComputeContext(svgView.m16, svgProjection.m16, gContext.mModelSource.m16, gContext.mMode);
+      return isAnimating;
    }
 };
