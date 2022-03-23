@@ -193,84 +193,6 @@ namespace IMGUIZMO_NAMESPACE
    template <typename T> T min(T x, T y) { return (x < y) ? x : y; }
    template <typename T> bool IsWithin(T x, T y, T z) { return (x >= y) && (x <= z); }
 
-   struct matrix_t;
-   struct vec_t
-   {
-   public:
-      float x, y, z, w;
-
-      void Lerp(const vec_t& v, float t)
-      {
-         x += (v.x - x) * t;
-         y += (v.y - y) * t;
-         z += (v.z - z) * t;
-         w += (v.w - w) * t;
-      }
-
-      void Set(float v) { x = y = z = w = v; }
-      void Set(float _x, float _y, float _z = 0.f, float _w = 0.f) { x = _x; y = _y; z = _z; w = _w; }
-
-      vec_t& operator -= (const vec_t& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this; }
-      vec_t& operator += (const vec_t& v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this; }
-      vec_t& operator *= (const vec_t& v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
-      vec_t& operator *= (float v) { x *= v;    y *= v;    z *= v;    w *= v;    return *this; }
-
-      vec_t operator * (float f) const;
-      vec_t operator - () const;
-      vec_t operator - (const vec_t& v) const;
-      vec_t operator + (const vec_t& v) const;
-      vec_t operator * (const vec_t& v) const;
-
-      const vec_t& operator + () const { return (*this); }
-      float Length() const { return sqrtf(x * x + y * y + z * z); };
-      float LengthSq() const { return (x * x + y * y + z * z); };
-      vec_t Normalize() { (*this) *= (1.f / ( Length() > FLT_EPSILON ? Length() : FLT_EPSILON ) ); return (*this); }
-      vec_t Normalize(const vec_t& v) { this->Set(v.x, v.y, v.z, v.w); this->Normalize(); return (*this); }
-      vec_t Abs() const;
-
-      void Cross(const vec_t& v)
-      {
-         vec_t res;
-         res.x = y * v.z - z * v.y;
-         res.y = z * v.x - x * v.z;
-         res.z = x * v.y - y * v.x;
-
-         x = res.x;
-         y = res.y;
-         z = res.z;
-         w = 0.f;
-      }
-
-      void Cross(const vec_t& v1, const vec_t& v2)
-      {
-         x = v1.y * v2.z - v1.z * v2.y;
-         y = v1.z * v2.x - v1.x * v2.z;
-         z = v1.x * v2.y - v1.y * v2.x;
-         w = 0.f;
-      }
-
-      float Dot(const vec_t& v) const
-      {
-         return (x * v.x) + (y * v.y) + (z * v.z) + (w * v.w);
-      }
-
-      float Dot3(const vec_t& v) const
-      {
-         return (x * v.x) + (y * v.y) + (z * v.z);
-      }
-
-      void Transform(const matrix_t& matrix);
-      void Transform(const vec_t& s, const matrix_t& matrix);
-
-      void TransformVector(const matrix_t& matrix);
-      void TransformPoint(const matrix_t& matrix);
-      void TransformVector(const vec_t& v, const matrix_t& matrix) { (*this) = v; this->TransformVector(matrix); }
-      void TransformPoint(const vec_t& v, const matrix_t& matrix) { (*this) = v; this->TransformPoint(matrix); }
-
-      float& operator [] (size_t index) { return ((float*)&x)[index]; }
-      const float& operator [] (size_t index) const { return ((float*)&x)[index]; }
-      bool operator!=(const vec_t& other) const { return memcmp(this, &other, sizeof(vec_t)); }
-   };
 
    vec_t makeVect(float _x, float _y, float _z = 0.f, float _w = 0.f) { vec_t res; res.x = _x; res.y = _y; res.z = _z; res.w = _w; return res; }
    vec_t makeVect(ImVec2 v) { vec_t res; res.x = v.x; res.y = v.y; res.z = 0.f; res.w = 0.f; return res; }
@@ -279,6 +201,7 @@ namespace IMGUIZMO_NAMESPACE
    vec_t vec_t::operator - (const vec_t& v) const { return makeVect(x - v.x, y - v.y, z - v.z, w - v.w); }
    vec_t vec_t::operator + (const vec_t& v) const { return makeVect(x + v.x, y + v.y, z + v.z, w + v.w); }
    vec_t vec_t::operator * (const vec_t& v) const { return makeVect(x * v.x, y * v.y, z * v.z, w * v.w); }
+   float vec_t::Length() const { return sqrtf(x * x + y * y + z * z); }
    vec_t vec_t::Abs() const { return makeVect(fabsf(x), fabsf(y), fabsf(z)); }
 
    vec_t Normalized(const vec_t& v) { vec_t res; res = v; res.Normalize(); return res; }
@@ -2675,14 +2598,8 @@ namespace IMGUIZMO_NAMESPACE
       }
    }
 
-   bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor)
+   bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor, ViewManipulateData& data)
    {
-      static bool isDraging = false;
-      static bool isClicking = false;
-      static bool isInside = false;
-      static vec_t interpolationUp;
-      static vec_t interpolationDir;
-      static int interpolationFrames = 0;
       const vec_t referenceUp = makeVect(0.f, 1.f, 0.f);
 
       bool isAnimating = false;
@@ -2786,12 +2703,12 @@ namespace IMGUIZMO_NAMESPACE
                bool insidePanel = localx > panelCorners[0].x && localx < panelCorners[1].x&& localy > panelCorners[0].y && localy < panelCorners[1].y;
                int boxCoordInt = int(boxCoord.x * 9.f + boxCoord.y * 3.f + boxCoord.z);
                assert(boxCoordInt < 27);
-               boxes[boxCoordInt] |= insidePanel && (!isDraging) && gContext.mbMouseOver;
+               boxes[boxCoordInt] |= insidePanel && (!data.isDragging) && gContext.mbMouseOver;
 
                // draw face with lighter color
                if (iPass)
                {
-                  gContext.mDrawList->AddConvexPolyFilled(faceCoordsScreen, 4, (directionColor[normalIndex] | IM_COL32(0x80, 0x80, 0x80, 0x80)) | (isInside ? IM_COL32(0x08, 0x08, 0x08, 0) : 0));
+                  gContext.mDrawList->AddConvexPolyFilled(faceCoordsScreen, 4, (directionColor[normalIndex] | IM_COL32(0x80, 0x80, 0x80, 0x80)) | (data.isInside ? IM_COL32(0x08, 0x08, 0x08, 0) : 0));
                   if (boxes[boxCoordInt])
                   {
                      gContext.mDrawList->AddConvexPolyFilled(faceCoordsScreen, 4, IM_COL32(0xF0, 0xA0, 0x60, 0x80));
@@ -2802,10 +2719,10 @@ namespace IMGUIZMO_NAMESPACE
                         int cx = boxCoordInt / 9;
                         int cy = (boxCoordInt - cx * 9) / 3;
                         int cz = boxCoordInt % 3;
-                        interpolationDir = makeVect(1.f - cx, 1.f - cy, 1.f - cz);
-                        interpolationDir.Normalize();
+                        data.interpolationDir = makeVect(1.f - cx, 1.f - cy, 1.f - cz);
+                        data.interpolationDir.Normalize();
 
-                        if (fabsf(Dot(interpolationDir, referenceUp)) > 1.0f - 0.01f)
+                        if (fabsf(Dot(data.interpolationDir, referenceUp)) > 1.0f - 0.01f)
                         {
                            vec_t right = viewInverse.v.right;
                            if (fabsf(right.x) > fabsf(right.z))
@@ -2817,50 +2734,49 @@ namespace IMGUIZMO_NAMESPACE
                               right.x = 0.f;
                            }
                            right.Normalize();
-                           interpolationUp = Cross(interpolationDir, right);
-                           interpolationUp.Normalize();
+                           data.interpolationUp = Cross(data.interpolationDir, right);
+                           data.interpolationUp.Normalize();
                         }
                         else
                         {
-                           interpolationUp = referenceUp;
+                           data.interpolationUp = referenceUp;
                         }
-                        interpolationFrames = 40;
-                        isClicking = false;
+                        data.interpolationFrames = 40;
+                        data.isClicking = false;
                      }
                   }
                }
             }
          }
       }
-      if (interpolationFrames)
+      if (data.interpolationFrames)
       {
-         interpolationFrames--;
+         data.interpolationFrames--;
          vec_t newDir = viewInverse.v.dir;
-         newDir.Lerp(interpolationDir, 0.2f);
+         newDir.Lerp(data.interpolationDir, 0.2f);
          newDir.Normalize();
 
          vec_t newUp = viewInverse.v.up;
-         newUp.Lerp(interpolationUp, 0.3f);
+         newUp.Lerp(data.interpolationUp, 0.3f);
          newUp.Normalize();
-         newUp = interpolationUp;
+         newUp = data.interpolationUp;
          vec_t newEye = camTarget + newDir * length;
          LookAt(&newEye.x, &camTarget.x, &newUp.x, view);
          isAnimating = true;
       }
-      isInside = gContext.mbMouseOver && ImRect(position, position + size).Contains(io.MousePos);
+      data.isInside = gContext.mbMouseOver && ImRect(position, position + size).Contains(io.MousePos);
 
       // drag view
-      if (!isDraging && io.MouseClicked[0] && isInside)
+      if (!data.isDragging && io.MouseClicked[0] && data.isInside)
       {
-         isDraging = true;
-         isClicking = false;
+         data.isDragging = true;
+         data.isClicking = false;
       }
-      else if (isDraging && !io.MouseDown[0])
+      else if (data.isDragging && !io.MouseDown[0])
       {
-         isDraging = false;
+         data.isDragging = false;
       }
-
-      if (isDraging)
+      if (data.isDragging)
       {
          matrix_t rx, ry, roll;
 
