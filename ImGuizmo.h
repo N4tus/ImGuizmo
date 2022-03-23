@@ -202,13 +202,101 @@ namespace IMGUIZMO_NAMESPACE
       WORLD
    };
 
+   struct matrix_t;
+   struct vec_t
+   {
+   public:
+      float x, y, z, w;
+
+      void Lerp(const vec_t& v, float t)
+      {
+         x += (v.x - x) * t;
+         y += (v.y - y) * t;
+         z += (v.z - z) * t;
+         w += (v.w - w) * t;
+      }
+
+      void Set(float v) { x = y = z = w = v; }
+      void Set(float _x, float _y, float _z = 0.f, float _w = 0.f) { x = _x; y = _y; z = _z; w = _w; }
+
+      vec_t& operator -= (const vec_t& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this; }
+      vec_t& operator += (const vec_t& v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this; }
+      vec_t& operator *= (const vec_t& v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
+      vec_t& operator *= (float v) { x *= v;    y *= v;    z *= v;    w *= v;    return *this; }
+
+      vec_t operator * (float f) const;
+      vec_t operator - () const;
+      vec_t operator - (const vec_t& v) const;
+      vec_t operator + (const vec_t& v) const;
+      vec_t operator * (const vec_t& v) const;
+
+      const vec_t& operator + () const { return (*this); }
+      float Length() const;
+      float LengthSq() const { return (x * x + y * y + z * z); };
+      vec_t Normalize() { (*this) *= (1.f / ( Length() > FLT_EPSILON ? Length() : FLT_EPSILON ) ); return (*this); }
+      vec_t Normalize(const vec_t& v) { this->Set(v.x, v.y, v.z, v.w); this->Normalize(); return (*this); }
+      vec_t Abs() const;
+
+      void Cross(const vec_t& v)
+      {
+         vec_t res;
+         res.x = y * v.z - z * v.y;
+         res.y = z * v.x - x * v.z;
+         res.z = x * v.y - y * v.x;
+
+         x = res.x;
+         y = res.y;
+         z = res.z;
+         w = 0.f;
+      }
+
+      void Cross(const vec_t& v1, const vec_t& v2)
+      {
+         x = v1.y * v2.z - v1.z * v2.y;
+         y = v1.z * v2.x - v1.x * v2.z;
+         z = v1.x * v2.y - v1.y * v2.x;
+         w = 0.f;
+      }
+
+      float Dot(const vec_t& v) const
+      {
+         return (x * v.x) + (y * v.y) + (z * v.z) + (w * v.w);
+      }
+
+      float Dot3(const vec_t& v) const
+      {
+         return (x * v.x) + (y * v.y) + (z * v.z);
+      }
+
+      void Transform(const matrix_t& matrix);
+      void Transform(const vec_t& s, const matrix_t& matrix);
+
+      void TransformVector(const matrix_t& matrix);
+      void TransformPoint(const matrix_t& matrix);
+      void TransformVector(const vec_t& v, const matrix_t& matrix) { (*this) = v; this->TransformVector(matrix); }
+      void TransformPoint(const vec_t& v, const matrix_t& matrix) { (*this) = v; this->TransformPoint(matrix); }
+
+      float& operator [] (size_t index) { return ((float*)&x)[index]; }
+      const float& operator [] (size_t index) const { return ((float*)&x)[index]; }
+      bool operator!=(const vec_t& other) const { return memcmp(this, &other, sizeof(vec_t)); }
+   };
+
+   struct ViewManipulateData {
+      bool isDragging = false;
+      bool isClicking = false;
+      bool isInside = false;
+      vec_t interpolationUp;
+      vec_t interpolationDir;
+      int interpolationFrames = 0;
+   };
+
    IMGUI_API bool Manipulate(const float* view, const float* projection, OPERATION operation, MODE mode, float* matrix, float* deltaMatrix = NULL, const float* snap = NULL, const float* localBounds = NULL, const float* boundsSnap = NULL);
    //
    // Please note that this cubeview is patented by Autodesk : https://patents.google.com/patent/US7782319B2/en
    // It seems to be a defensive patent in the US. I don't think it will bring troubles using it as
    // other software are using the same mechanics. But just in case, you are now warned!
    //
-   IMGUI_API bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor);
+   IMGUI_API bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor, ViewManipulateData& data);
 
    IMGUI_API void SetID(int id);
 
